@@ -32,6 +32,9 @@ class MainWindow(QMainWindow):
         self.current_model = None
         self.skip_analysis = {}
         self.target_image = None
+        self.target_data_path = None
+        self.custom_model_path = None
+        self.custom_loss_path = None
         self.worker = None
         
         self._setup_ui()
@@ -50,10 +53,10 @@ class MainWindow(QMainWindow):
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
-        # 1. Image Management
-        sidebar_layout.addWidget(QLabel("<b>1. Image Management</b>"))
-        self.load_image_btn = QPushButton("Load Target Image")
-        self.load_image_btn.clicked.connect(self._open_image)
+        # 1. Data Management
+        sidebar_layout.addWidget(QLabel("<b>1. Data Management</b>"))
+        self.load_image_btn = QPushButton("Load Target (Image/Tensor)")
+        self.load_image_btn.clicked.connect(self._open_data)
         sidebar_layout.addWidget(self.load_image_btn)
         
         sidebar_layout.addSpacing(10)
@@ -65,6 +68,18 @@ class MainWindow(QMainWindow):
         self.model_dropdown.currentTextChanged.connect(self._on_model_changed)
         sidebar_layout.addWidget(self.model_dropdown)
         
+        sidebar_layout.addSpacing(10)
+
+        # 2b. Custom Assets
+        sidebar_layout.addWidget(QLabel("<b>2b. Custom Assets</b>"))
+        self.load_custom_model_btn = QPushButton("Load Custom Model Script")
+        self.load_custom_model_btn.clicked.connect(self._load_custom_model_script)
+        sidebar_layout.addWidget(self.load_custom_model_btn)
+
+        self.load_custom_loss_btn = QPushButton("Load Custom Loss Script")
+        self.load_custom_loss_btn.clicked.connect(self._load_custom_loss_script)
+        sidebar_layout.addWidget(self.load_custom_loss_btn)
+
         sidebar_layout.addSpacing(10)
         
         # 3. Layer Selection
@@ -183,14 +198,43 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(sidebar)
         main_layout.addWidget(canvas_container, stretch=1)
 
-    def _open_image(self):
+    def _open_data(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "inputs", "Image Files (*.png *.jpg *.jpeg *.bmp)"
+            self, "Open Data (Image or Tensor)", "inputs", 
+            "All Supported (*.png *.jpg *.jpeg *.bmp *.npy *.pt *.pth);;Image Files (*.png *.jpg *.jpeg *.bmp);;Tensor Files (*.npy *.pt *.pth)"
         )
         if file_path:
-            self.target_image = Image.open(file_path).convert("RGB")
-            self.canvas.load_image(self.target_image)
+            self.target_data_path = file_path
+            from .utils import is_image_file
+            if is_image_file(file_path):
+                self.target_image = Image.open(file_path).convert("RGB")
+                self.canvas.load_image(self.target_image)
+            else:
+                self.target_image = None
+                self.canvas.clear_image()
             self.status_label.setText(f"Loaded: {os.path.basename(file_path)}")
+
+    def _load_custom_model_script(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Custom Model Script", "", "Python Files (*.py)"
+        )
+        if file_path:
+            self.custom_model_path = file_path
+            self.model_dropdown.setCurrentIndex(0)
+            self.model_dropdown.setEnabled(False)
+            self.status_label.setText(f"Custom Model Script: {os.path.basename(file_path)}")
+            # We will handle the actual loading in the worker or a specialized method
+            # For now, we clear the layer dropdown as we don't know the layers until loaded
+            self.layer_dropdown.clear()
+            self.layer_dropdown.addItem("Dynamic (enter layer name in code/terminal)", "custom")
+
+    def _load_custom_loss_script(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Custom Loss Script", "", "Python Files (*.py)"
+        )
+        if file_path:
+            self.custom_loss_path = file_path
+            self.status_label.setText(f"Custom Loss Script: {os.path.basename(file_path)}")
 
     def _on_model_changed(self, model_name: str):
         """Loads the selected model and updates the layer dropdown."""
@@ -247,11 +291,11 @@ class MainWindow(QMainWindow):
 
     def _start_optimization(self):
         """Prepares and starts the background optimization worker."""
-        if not self.target_image:
-            QMessageBox.warning(self, "Warning", "Please load a target image first.")
+        if not self.target_image and not self.target_data_path:
+            QMessageBox.warning(self, "Warning", "Please load target data first.")
             return
-        if not self.current_model:
-            QMessageBox.warning(self, "Warning", "Please select a model architecture first.")
+        if not self.current_model and not self.custom_model_path:
+            QMessageBox.warning(self, "Warning", "Please select a model or load a custom model script.")
             return
         if self.layer_dropdown.currentIndex() == -1:
             QMessageBox.warning(self, "Warning", "Please select a target layer.")
@@ -269,7 +313,7 @@ class MainWindow(QMainWindow):
         starting_image = self.target_image if start_choice == "Base Image" else None
         
         # Get mask from canvas
-        mask_tensor = self.canvas.get_mask_tensor()
+        mask_tensor = self.canvas.get_mask_tensor() if self.target_image else None
         
         # Setup UI for optimization
         self.progress_bar.setMaximum(iters)
@@ -279,6 +323,8 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(True)
         self.load_image_btn.setEnabled(False)
         self.model_dropdown.setEnabled(False)
+        self.load_custom_model_btn.setEnabled(False)
+        self.load_custom_loss_btn.setEnabled(False)
         self.status_label.setText("Optimizing...")
 
         # Initialize Worker
@@ -286,6 +332,9 @@ class MainWindow(QMainWindow):
             model=self.current_model,
             target_layer=target_layer,
             target_image=self.target_image,
+            target_data_path=self.target_data_path,
+            custom_model_path=self.custom_model_path,
+            custom_loss_path=self.custom_loss_path,
             starting_image=starting_image,
             mask_tensor=mask_tensor,
             lr=lr,
@@ -319,6 +368,8 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(False)
         self.load_image_btn.setEnabled(True)
         self.model_dropdown.setEnabled(True)
+        self.load_custom_model_btn.setEnabled(True)
+        self.load_custom_loss_btn.setEnabled(True)
 
     @pyqtSlot(int, float)
     def _on_optimization_progress(self, iteration, loss):
@@ -330,45 +381,57 @@ class MainWindow(QMainWindow):
         self._update_live_result(pil_image)
 
     @pyqtSlot(object)
-    def _on_optimization_finished(self, final_image: Image.Image):
+    def _on_optimization_finished(self, result):
         self._cleanup_optimization_ui()
         self.status_label.setText("Optimization Complete.")
         
-        # Update final live result
-        self._update_live_result(final_image)
-        
-        # Quick preview
-        final_image.show() 
-        
-        save_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Metamer", "results", "JPEG (*.jpg);;PNG (*.png)"
-        )
-        if save_path:
-            # 1. Save the main metamer
-            final_image.save(save_path)
+        if isinstance(result, Image.Image):
+            # Update final live result
+            self._update_live_result(result)
             
-            # 2. Generate and save the comparison image
-            try:
-                base, ext = os.path.splitext(save_path)
-                compare_path = f"{base}_compare{ext}"
+            # Quick preview
+            result.show() 
+            
+            save_path, _ = QFileDialog.getSaveFileName(
+                self, "Save Metamer", "results", "JPEG (*.jpg);;PNG (*.png)"
+            )
+            if save_path:
+                # 1. Save the main metamer
+                result.save(save_path)
                 
-                if self.target_image:
-                    # Use a more compatible way to access the LANCZOS filter
-                    # Image.LANCZOS is available in newer and older Pillow versions
-                    resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
-                    target_resized = self.target_image.resize(final_image.size, resample_filter)
+                # 2. Generate and save the comparison image
+                try:
+                    base, ext = os.path.splitext(save_path)
+                    compare_path = f"{base}_compare{ext}"
                     
-                    comparison_img = concat_images(target_resized, final_image)
-                    comparison_img.save(compare_path)
-                    
-                    QMessageBox.information(
-                        self, "Saved", 
-                        f"Metamer saved to:\n{save_path}\n\nComparison saved to:\n{compare_path}"
-                    )
+                    if self.target_image:
+                        resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
+                        target_resized = self.target_image.resize(result.size, resample_filter)
+                        
+                        comparison_img = concat_images(target_resized, result)
+                        comparison_img.save(compare_path)
+                        
+                        QMessageBox.information(
+                            self, "Saved", 
+                            f"Metamer saved to:\n{save_path}\n\nComparison saved to:\n{compare_path}"
+                        )
+                    else:
+                        QMessageBox.information(self, "Saved", f"Metamer saved to {save_path}")
+                except Exception as e:
+                    QMessageBox.warning(self, "Comparison Error", f"Metamer saved, but comparison failed: {str(e)}")
+        else:
+            # Result is a Tensor
+            save_path, _ = QFileDialog.getSaveFileName(
+                self, "Save Metamer Tensor", "results", "Torch Tensor (*.pt);;Numpy Array (*.npy)"
+            )
+            if save_path:
+                from .utils import save_data
+                if save_path.endswith('.npy'):
+                    import numpy as np
+                    np.save(save_path, result.numpy())
                 else:
-                    QMessageBox.information(self, "Saved", f"Metamer saved to {save_path}")
-            except Exception as e:
-                QMessageBox.warning(self, "Comparison Error", f"Metamer saved, but comparison failed: {str(e)}")
+                    save_data(result, save_path)
+                QMessageBox.information(self, "Saved", f"Metamer tensor saved to {save_path}")
 
     @pyqtSlot(str)
     def _on_optimization_error(self, error_msg):

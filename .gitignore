@@ -1,3 +1,5 @@
 models/*
 inputs/*
 results/*
+test*
+*.pt

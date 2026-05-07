@@ -76,6 +76,15 @@ class ImageMaskCanvas(QLabel):
         self._history.clear()
         self._update_display()
 
+    def clear_image(self):
+        """Clears the current image and mask from the canvas."""
+        self.original_pixmap = None
+        self.display_pixmap = None
+        self.mask_image = None
+        self._history.clear()
+        self.setPixmap(QPixmap())
+        self.setText("Raw Tensor Mode (No Canvas Preview)")
+
     def _update_display(self, temp_draw: bool = False):
         """Scales the image and mask to fit the current widget size and displays them."""
         if self.original_pixmap is None:

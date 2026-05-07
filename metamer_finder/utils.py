@@ -59,19 +59,30 @@ def is_image_file(filename: str) -> bool:
     extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff')
     return filename.lower().endswith(extensions)
 
-def load_data(path: str, device: torch.device) -> torch.nn.Module:
+def load_data(path: str, device: torch.device) -> torch.Tensor:
     """
-    Loads data from a file path. If it's a .pt or .pth file, loads as tensor.
-    Otherwise, assumes it will be handled by the vision pipeline.
+    Loads data from a file path. Supports .npy (numpy) and .pt/.pth (torch) files.
+    Returns a torch.Tensor on the specified device.
     """
-    if path.lower().endswith(('.pt', '.pth')):
+    import numpy as np
+    
+    path_lower = path.lower()
+    
+    if path_lower.endswith(('.pt', '.pth')):
         data = torch.load(path, map_location=device, weights_only=False)
-        if isinstance(data, torch.Tensor):
-            # Ensure it has a batch dimension if it's a vector
-            if data.dim() == 1:
-                data = data.unsqueeze(0)
-            return data
-    return None
+        if not isinstance(data, torch.Tensor):
+            return None
+    elif path_lower.endswith('.npy'):
+        data = np.load(path)
+        data = torch.from_numpy(data).to(device)
+    else:
+        return None
+
+    # Ensure it has a batch dimension if it's a vector
+    if data.dim() == 1:
+        data = data.unsqueeze(0)
+    
+    return data.float()
 
 def save_data(data: torch.Tensor, path: str):
     """Saves a tensor to a .pt file."""

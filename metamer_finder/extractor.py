@@ -70,10 +70,12 @@ class FeatureExtractor:
         """
         Safely removes all registered hooks to prevent memory leaks and unexpected behavior.
         """
-        for hook in self._hooks:
-            hook.remove()
-        self._hooks = []
+        if hasattr(self, '_hooks'):
+            for hook in self._hooks:
+                hook.remove()
+            self._hooks = []
 
     def __del__(self):
         """Ensures hooks are removed when the object is garbage collected."""
-        self.remove_hooks()
+        if hasattr(self, '_hooks'):
+            self.remove_hooks()

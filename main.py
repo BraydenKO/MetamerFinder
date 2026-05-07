@@ -59,8 +59,20 @@ def parse_args():
                         help="Total Variation penalty to smooth the generated output.")
     parser.add_argument("--seed", type=int, default=None, 
                         help="Random seed for reproducibility.")
+    parser.add_argument("--loss_hook", type=str, default=None,
+                        help="Path to a .py file containing a custom_penalty(tensor) function.")
 
     return parser.parse_args()
+
+def load_custom_loss(path: str):
+    """Dynamically loads a custom_penalty function from a .py file."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("custom_loss", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if hasattr(module, "custom_penalty"):
+        return module.custom_penalty
+    raise AttributeError(f"Module at {path} does not have a 'custom_penalty' function.")
 
 def main():
     args = parse_args()
@@ -125,13 +137,19 @@ def main():
     print(f"Optimizing for {args.iters} iterations (LR: {args.lr})...")
     noise_tensor = torch.randn_like(target_tensor) * 0.01
     
+    custom_loss_hook = None
+    if args.loss_hook:
+        print(f"Loading custom loss hook from: {args.loss_hook}")
+        custom_loss_hook = load_custom_loss(args.loss_hook)
+
     optimizer = MetamerOptimizer(
         extractor=extractor, 
         target_features=target_features, 
         lr=args.lr,
         max_iterations=args.iters,
         loss_type=args.loss_type,
-        tv_weight=args.tv_weight
+        tv_weight=args.tv_weight,
+        custom_loss_hook=custom_loss_hook
     )
     
     # 6. Generate the Metamer

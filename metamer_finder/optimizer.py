@@ -28,7 +28,8 @@ class MetamerOptimizer:
         lr: float = 0.01, 
         max_iterations: int = 500,
         tv_weight: float = 0.0,
-        loss_type: str = "mse"
+        loss_type: str = "mse",
+        custom_loss_hook: Optional[Any] = None
     ):
         """
         Initializes the MetamerOptimizer.
@@ -40,6 +41,7 @@ class MetamerOptimizer:
             max_iterations (int): Optimization steps. Defaults to 500.
             tv_weight (float): Weight for Total Variation regularization. Defaults to 0.0.
             loss_type (str): 'mse' for exact spatial matching, 'gram' for texture matching.
+            custom_loss_hook (Optional[Callable]): A function that takes the optimized tensor and returns a scalar loss.
         """
         self.extractor = extractor
         self.target_features = target_features
@@ -47,19 +49,22 @@ class MetamerOptimizer:
         self.max_iterations = max_iterations
         self.tv_weight = tv_weight
         self.loss_type = loss_type
+        self.custom_loss_hook = custom_loss_hook
 
     @staticmethod
     def _calc_tv_loss(tensor: torch.Tensor) -> torch.Tensor:
         """
         Calculates Total Variation loss dynamically based on tensor dimensions.
         """
+        
         if tensor.dim() == 4:  # Image: (B, C, H, W)
-            diff_h = torch.abs(tensor[:, :, 1:, :] - tensor[:, :, :-1, :]).sum()
-            diff_w = torch.abs(tensor[:, :, :, 1:] - tensor[:, :, :, :-1]).sum()
+            diff_h = torch.abs(tensor[:, :, 1:, :] - tensor[:, :, :-1, :]).mean()
+            diff_w = torch.abs(tensor[:, :, :, 1:] - tensor[:, :, :, :-1]).mean()
             return diff_h + diff_w
         elif tensor.dim() == 3:  # 1D Sequence: (B, C, T)
-            diff_t = torch.abs(tensor[:, :, 1:] - tensor[:, :, :-1]).sum()
+            diff_t = torch.abs(tensor[:, :, 1:] - tensor[:, :, :-1]).mean()
             return diff_t
+        
         return torch.tensor(0.0, device=tensor.device)
 
     @staticmethod
@@ -125,6 +130,10 @@ class MetamerOptimizer:
 
             # Total Loss = Feature Loss + TV Regularization
             total_loss = feature_loss + self.tv_weight * self._calc_tv_loss(image_tensor)
+
+            # Apply custom loss hook if provided
+            if self.custom_loss_hook is not None:
+                total_loss += self.custom_loss_hook(image_tensor)
 
             total_loss.backward()
             optimizer.step()
