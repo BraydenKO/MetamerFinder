@@ -22,15 +22,6 @@ By optimizing an input image (starting from noise or another image) to minimize 
 
 ---
 
-## The Neuroscience Connection
-
-In biological vision, metamers are stimuli that are perceptually indistinguishable despite physical differences. In the context of Artificial Neural Networks (ANNs), we use metamers to probe the representational hierarchy:
-
-1. **Early Layers (e.g., VGG16 features.1)**: These representations are analogous to the Primary Visual Cortex (V1). Metamers matching these layers preserve local spatial edges, orientation, and color, resulting in an image that is often visually similar to the target.
-2. **Late Layers (e.g., VGG16 features.25)**: These representations are analogous to the Inferotemporal (IT) Cortex. At this stage, the network has discarded precise spatial coordinates in favor of semantic content. Metamers generated here look like abstract "semantic textures" or "neural noise"—highly complex patterns that look nothing like the original to a human, yet are "identical" to the model.
-
----
-
 ## Architectural Insights: Safe Choke Points
 
 When working with modern architectures like ResNet, not all layers are equal. Metamer Finder includes a specialized inspection tool (inspect_model.py) that uses torch.fx symbolic tracing to identify Residual Skip Connections:
