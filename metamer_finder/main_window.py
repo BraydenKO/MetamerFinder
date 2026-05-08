@@ -15,6 +15,7 @@ from PIL import Image
 from .canvas import ImageMaskCanvas, ToolMode
 from .worker import OptimizationWorker
 from .transforms import concat_images
+from .utils import get_device, load_model
 from inspect_model import analyze_skip_connections
 
 class MainWindow(QMainWindow):
@@ -64,7 +65,7 @@ class MainWindow(QMainWindow):
         # 2. Model Management
         sidebar_layout.addWidget(QLabel("<b>2. Model Architecture</b>"))
         self.model_dropdown = QComboBox()
-        self.model_dropdown.addItems(["Select a model...", "VGG16", "ResNet18", "ResNet50"])
+        self.model_dropdown.addItems(["Select a model...", "VGG16", "ResNet18", "ResNet50", "ViT-B/16"])
         self.model_dropdown.currentTextChanged.connect(self._on_model_changed)
         sidebar_layout.addWidget(self.model_dropdown)
         
@@ -72,7 +73,7 @@ class MainWindow(QMainWindow):
 
         # 2b. Custom Assets
         sidebar_layout.addWidget(QLabel("<b>2b. Custom Assets</b>"))
-        self.load_custom_model_btn = QPushButton("Load Custom Model Script")
+        self.load_custom_model_btn = QPushButton("Load Custom Model (.py / .pth)")
         self.load_custom_model_btn.clicked.connect(self._load_custom_model_script)
         sidebar_layout.addWidget(self.load_custom_model_btn)
 
@@ -216,17 +217,37 @@ class MainWindow(QMainWindow):
 
     def _load_custom_model_script(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Custom Model Script", "", "Python Files (*.py)"
+            self, "Select Custom Model (.py or .pth)", "", 
+            "Model Files (*.py *.pth *.pt)"
         )
         if file_path:
             self.custom_model_path = file_path
             self.model_dropdown.setCurrentIndex(0)
-            self.model_dropdown.setEnabled(False)
-            self.status_label.setText(f"Custom Model Script: {os.path.basename(file_path)}")
-            # We will handle the actual loading in the worker or a specialized method
-            # For now, we clear the layer dropdown as we don't know the layers until loaded
-            self.layer_dropdown.clear()
-            self.layer_dropdown.addItem("Dynamic (enter layer name in code/terminal)", "custom")
+            
+            if file_path.lower().endswith(('.pth', '.pt')):
+                print(f"Loading custom model weights from {file_path}")
+                self.status_label.setText(f"Loading {os.path.basename(file_path)}...")
+                try:
+                    self.current_model = load_model(file_path, get_device())
+                    print("Analyzing model architecture...")
+                    self.skip_analysis = analyze_skip_connections(self.current_model)
+                    self._populate_layer_dropdown()
+                    self.status_label.setText(f"Custom Model Loaded: {os.path.basename(file_path)}")
+                    # For .pth files, we've loaded the model, so we can clear the path
+                    # and let the worker use self.current_model
+                    self.custom_model_path = None
+                    self.model_dropdown.setEnabled(True)
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to load custom model: {str(e)}")
+                    self.status_label.setText("Custom Model load failed.")
+                    self.model_dropdown.setEnabled(True)
+            else:
+                self.current_model = None
+                self.status_label.setText(f"Custom Model Script: {os.path.basename(file_path)}")
+                self.model_dropdown.setEnabled(False)
+                # For script files, we can't analyze until run time
+                self.layer_dropdown.clear()
+                self.layer_dropdown.addItem("Dynamic (enter layer name in code/terminal)", "custom")
 
     def _load_custom_loss_script(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -235,6 +256,13 @@ class MainWindow(QMainWindow):
         if file_path:
             self.custom_loss_path = file_path
             self.status_label.setText(f"Custom Loss Script: {os.path.basename(file_path)}")
+        else:
+            # Clear if canceled? Or maybe add a dedicated clear button.
+            # For now, let's allow clearing by canceling if it was already set.
+            if self.custom_loss_path:
+                if QMessageBox.question(self, "Clear Loss?", "Do you want to clear the custom loss script?") == QMessageBox.StandardButton.Yes:
+                    self.custom_loss_path = None
+                    self.status_label.setText("Custom Loss Script Cleared.")
 
     def _on_model_changed(self, model_name: str):
         """Loads the selected model and updates the layer dropdown."""
@@ -243,6 +271,9 @@ class MainWindow(QMainWindow):
             self.current_model = None
             return
 
+        # Clear custom model path if we are switching to a standard model
+        self.custom_model_path = None
+        
         print(f"Loading {model_name}...")
         self.status_label.setText(f"Loading {model_name}...")
         self.model_dropdown.setEnabled(False)
@@ -255,6 +286,8 @@ class MainWindow(QMainWindow):
                 self.current_model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
             elif model_name == "ResNet50":
                 self.current_model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+            elif model_name == "ViT-B/16":
+                self.current_model = models.vit_b_16(weights=models.ViT_B_16_Weights.DEFAULT)
             
             self.current_model.eval()
             

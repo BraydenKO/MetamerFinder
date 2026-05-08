@@ -2,6 +2,11 @@ models/*
 inputs/*
 results/*
 test*
+experiments/data/*
 *.pt
+__pycache__/*
+__pycache__
+
+.vscode
 
 neural-data-transformers

@@ -62,6 +62,10 @@ class OptimizationWorker(QThread):
             return getattr(module, func_name)
         raise AttributeError(f"Module at {path} does not have a '{func_name}' function.")
 
+    def request_stop(self):
+        """Sets the stop flag to break the optimization loop."""
+        self._stop_requested = True
+
     def run(self):
         extractor = None
         try:
@@ -69,9 +73,14 @@ class OptimizationWorker(QThread):
             
             # 1. Resolve Model
             if self.custom_model_path:
-                print(f"Loading custom model script from {self.custom_model_path}")
-                load_func = self._load_custom_script(self.custom_model_path, "get_model")
-                self.model = load_func().to(device)
+                if self.custom_model_path.lower().endswith(('.pth', '.pt')):
+                    print(f"Loading custom model weights from {self.custom_model_path}")
+                    from .utils import load_model
+                    self.model = load_model(self.custom_model_path, device)
+                else:
+                    print(f"Loading custom model script from {self.custom_model_path}")
+                    load_func = self._load_custom_script(self.custom_model_path, "get_model")
+                    self.model = load_func().to(device)
             else:
                 self.model.to(device)
             

@@ -28,9 +28,18 @@ def load_model(model_id: str, device: torch.device) -> torch.nn.Module:
         try:
             # We use weights_only=False to support loading full nn.Module objects.
             # Users should only load models from trusted sources.
-            model = torch.load(model_id, map_location=device, weights_only=False)
-            if not isinstance(model, torch.nn.Module):
-                raise ValueError("The provided file does not contain a full nn.Module.")
+            checkpoint = torch.load(model_id, map_location=device, weights_only=False)
+            
+            if isinstance(checkpoint, torch.nn.Module):
+                model = checkpoint
+            elif isinstance(checkpoint, dict):
+                raise ValueError(
+                    "The provided file appears to be a state dict (weights only). "
+                    "To load a custom model this way, the file must contain the full pickled nn.Module object. "
+                    "Use 'torch.save(model, path)' instead of 'torch.save(model.state_dict(), path)'."
+                )
+            else:
+                raise ValueError(f"The provided file contains a {type(checkpoint)}, not an nn.Module.")
         except Exception as e:
             print(f"Error loading custom model: {e}")
             sys.exit(1)
