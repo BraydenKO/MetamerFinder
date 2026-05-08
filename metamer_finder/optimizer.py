@@ -29,7 +29,9 @@ class MetamerOptimizer:
         max_iterations: int = 500,
         tv_weight: float = 0.0,
         loss_type: str = "mse",
-        custom_loss_hook: Optional[Any] = None
+        custom_loss_hook: Optional[Any] = None,
+        projection_fn: Optional[Any] = None,
+        override_base_loss: bool = False
     ):
         """
         Initializes the MetamerOptimizer.
@@ -41,7 +43,9 @@ class MetamerOptimizer:
             max_iterations (int): Optimization steps. Defaults to 500.
             tv_weight (float): Weight for Total Variation regularization. Defaults to 0.0.
             loss_type (str): 'mse' for exact spatial matching, 'gram' for texture matching.
-            custom_loss_hook (Optional[Callable]): A function that takes the optimized tensor and returns a scalar loss.
+            custom_loss_hook (Optional[Callable]): A function that takes (synthetic_spikes, synthetic_features, target_features) and returns a scalar loss.
+            projection_fn (Optional[Callable]): A function for in-place projection (e.g. PGD).
+            override_base_loss (bool): If True, skips default MSE/Gram/TV loss and uses custom_loss_hook only.
         """
         self.extractor = extractor
         self.target_features = target_features
@@ -50,6 +54,9 @@ class MetamerOptimizer:
         self.tv_weight = tv_weight
         self.loss_type = loss_type
         self.custom_loss_hook = custom_loss_hook
+        self.projection_fn = projection_fn
+        self.override_base_loss = override_base_loss
+        self.loss_history = []
 
     @staticmethod
     def _calc_tv_loss(tensor: torch.Tensor) -> torch.Tensor:
@@ -116,28 +123,45 @@ class MetamerOptimizer:
             # Extract current features
             current_features = self.extractor(image_tensor)
 
-            # Calculate total loss across all target layers
-            feature_loss = 0.0
-            for layer_name, target_act in self.target_features.items():
-                current_act = current_features[layer_name]
-                
-                if self.loss_type == "mse":
-                    feature_loss += F.mse_loss(current_act, target_act)
-                elif self.loss_type == "gram":
-                    target_gram = self._calc_gram_matrix(target_act)
-                    current_gram = self._calc_gram_matrix(current_act)
-                    feature_loss += F.mse_loss(current_gram, target_gram)
+            if self.override_base_loss:
+                # Use ONLY custom loss
+                total_loss = self.custom_loss_hook(image_tensor, current_features, self.target_features)
+            else:
+                # Calculate total loss across all target layers
+                feature_loss = 0.0
+                for layer_name, target_act in self.target_features.items():
+                    current_act = current_features[layer_name]
+                    
+                    # Handle cases where activation might be a tuple (e.g., GRU, LSTM)
+                    # We usually only care about the first output tensor
+                    if isinstance(target_act, tuple):
+                        target_act = target_act[0]
+                    if isinstance(current_act, tuple):
+                        current_act = current_act[0]
+                    
+                    if self.loss_type == "mse":
+                        feature_loss += F.mse_loss(current_act, target_act)
+                    elif self.loss_type == "gram":
+                        target_gram = self._calc_gram_matrix(target_act)
+                        current_gram = self._calc_gram_matrix(current_act)
+                        feature_loss += F.mse_loss(current_gram, target_gram)
 
-            # Total Loss = Feature Loss + TV Regularization
-            total_loss = feature_loss + self.tv_weight * self._calc_tv_loss(image_tensor)
+                # Total Loss = Feature Loss + TV Regularization
+                total_loss = feature_loss + self.tv_weight * self._calc_tv_loss(image_tensor)
 
-            # Apply custom loss hook if provided
-            if self.custom_loss_hook is not None:
-                total_loss += self.custom_loss_hook(image_tensor)
+                # Apply custom loss hook if provided
+                if self.custom_loss_hook is not None:
+                    total_loss += self.custom_loss_hook(image_tensor, current_features, self.target_features)
 
             total_loss.backward()
             optimizer.step()
 
+            # Apply in-place projection if provided (PGD)
+            if self.projection_fn is not None:
+                with torch.no_grad():
+                    self.projection_fn(image_tensor)
+
+            self.loss_history.append(total_loss.item())
             # Update progress bar with loss information
             pbar.set_postfix({"loss": f"{total_loss.item():.6f}"})
 

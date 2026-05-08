@@ -142,7 +142,7 @@ class OptimizationWorker(QThread):
                 
                 # Apply custom loss hook
                 if custom_loss_hook:
-                    total_loss += custom_loss_hook(image_tensor)
+                    total_loss += custom_loss_hook(image_tensor, current_features, target_features)
                 
                 total_loss.backward()
                 optimizer.step()

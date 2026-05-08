@@ -60,7 +60,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=None, 
                         help="Random seed for reproducibility.")
     parser.add_argument("--loss_hook", type=str, default=None,
-                        help="Path to a .py file containing a custom_penalty(tensor) function.")
+                        help="Path to a .py file containing a custom_penalty(synthetic_spikes, synthetic_features, target_features) function.")
 
     return parser.parse_args()
 
