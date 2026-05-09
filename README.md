@@ -104,9 +104,19 @@ This tool is heavily inspired by the work of Jenelle Feather and the McDermott L
 ## Project Structure
 
 - `metamer_finder/`: Core package containing extraction, optimization, and GUI logic.
+- `experiments/`: Research notebooks and specialized model adaptations (e.g., Transformers, Neural Decoders).
 - `inputs/`: Directory for target images and tensors.
 - `results/`: Default output directory for generated metamers and comparisons.
 - `examples/`: Permanent assets for documentation.
 - `gui_app.py`: Entry point for the graphical application.
 - `main.py`: Entry point for the CLI.
 - `inspect_model.py`: Structural analysis utility.
+
+---
+
+## Experiments & Specialized Demos
+
+The `experiments/` directory contains Jupyter notebooks and datasets demonstrating the tool's versatility across different domains:
+
+- **Neural Decoding (MC_Maze)**: Using the `NeuralDataTransformer` (NDT) to generate metamers for biological neural activity. This experiment probes what features of motor cortical spiking patterns are essential for a decoder to reconstruct movement.
+- **Natural Language Processing**: Investigating how language models represent text by generating metamers in the continuous embedding space, revealing the model's sensitivity to semantic vs. syntactic shifts.

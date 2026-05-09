@@ -22,46 +22,48 @@ def load_model(model_id: str, device: torch.device) -> torch.nn.Module:
     Returns:
         The loaded and evaluation-ready nn.Module.
     """
-    # Case 1: Load from local file
-    if os.path.exists(model_id):
-        print(f"Loading custom model from: {model_id}")
-        try:
-            # We use weights_only=False to support loading full nn.Module objects.
-            # Users should only load models from trusted sources.
-            checkpoint = torch.load(model_id, map_location=device, weights_only=False)
+    # Heuristic to check if model_id is likely a file path
+    is_path = model_id.endswith(('.pt', '.pth')) or os.path.sep in model_id or (os.path.altsep and os.path.altsep in model_id)
+    
+    if is_path or os.path.exists(model_id):
+        if not os.path.exists(model_id):
+            raise FileNotFoundError(f"Model file not found at '{model_id}'")
             
-            if isinstance(checkpoint, torch.nn.Module):
-                model = checkpoint
-            elif isinstance(checkpoint, dict):
-                raise ValueError(
-                    "The provided file appears to be a state dict (weights only). "
-                    "To load a custom model this way, the file must contain the full pickled nn.Module object. "
-                    "Use 'torch.save(model, path)' instead of 'torch.save(model.state_dict(), path)'."
-                )
-            else:
-                raise ValueError(f"The provided file contains a {type(checkpoint)}, not an nn.Module.")
-        except Exception as e:
-            print(f"Error loading custom model: {e}")
-            sys.exit(1)
+        print(f"Loading custom model from: {model_id}")
+        # We use weights_only=False to support loading full nn.Module objects.
+        # Users should only load models from trusted sources.
+        checkpoint = torch.load(model_id, map_location=device, weights_only=False)
+        
+        if isinstance(checkpoint, torch.nn.Module):
+            model = checkpoint
+        elif isinstance(checkpoint, dict):
+            # If it's a dictionary, it might be a state dict. 
+            # We return it as is and let the caller decide what to do.
+            # But the return type hint says nn.Module, so this is a bit tricky.
+            # For now, let's keep the error but make it a specific exception.
+            return checkpoint # Caller should check type
+        else:
+            raise ValueError(f"The provided file contains a {type(checkpoint)}, not an nn.Module or dict.")
     
     # Case 2: Load from torchvision
     else:
         print(f"Loading torchvision model: {model_id}")
-        try:
+        if hasattr(models, model_id):
             model_builder = getattr(models, model_id)
-            weights_enum = getattr(models, f"{model_id.upper()}_Weights", None)
-            if weights_enum:
+            # Try new weights API first
+            weights_attr = f"{model_id.upper()}_Weights"
+            if hasattr(models, weights_attr):
+                weights_enum = getattr(models, weights_attr)
                 model = model_builder(weights=weights_enum.DEFAULT)
             else:
+                # Fallback for older torchvision or models without weights enum
                 model = model_builder(pretrained=True)
-        except AttributeError:
-            print(f"Error: '{model_id}' is not a valid torchvision model name or file path.")
-            sys.exit(1)
-        except Exception as e:
-            print(f"Error initializing torchvision model: {e}")
-            sys.exit(1)
+        else:
+            raise AttributeError(f"'{model_id}' is not a valid torchvision model name.")
 
-    return model.to(device).eval()
+    if isinstance(model, torch.nn.Module):
+        model = model.to(device).eval()
+    return model
 
 def is_image_file(filename: str) -> bool:
     """Checks if a filename has an image extension."""
