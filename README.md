@@ -145,3 +145,4 @@ The `experiments/` directory contains Jupyter notebooks and datasets demonstrati
 
 - **Neural Decoding (MC_Maze)**: Using the `NeuralDataTransformer` (NDT) to generate metamers for biological neural activity. This experiment probes what features of motor cortical spiking patterns are essential for a decoder to reconstruct movement.
 - **Natural Language Processing**: Investigating how language models represent text by generating metamers in the continuous embedding space, revealing the model's sensitivity to semantic vs. syntactic shifts.
+- **Multimodal Models (CLIP & BLIP)**: Generating "cross-modal metamers" that bridge vision and language. This includes using CLIP to generate images that match specific text embeddings, and using BLIP to explore generative vision-to-language mappings.
