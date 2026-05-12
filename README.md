@@ -22,7 +22,7 @@ By optimizing an input image (starting from noise or another image) to minimize 
 
 ---
 
-## Architectural Insights: Safe Choke Points
+## Safe Choke Points
 
 When working with modern architectures like ResNet, not all layers are equal. Metamer Finder includes a specialized inspection tool (inspect_model.py) that uses torch.fx symbolic tracing to identify Residual Skip Connections:
 
