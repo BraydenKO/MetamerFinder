@@ -1,14 +1,4 @@
-import sys
-from PyQt6.QtWidgets import QApplication
-from metamer_finder.main_window import MainWindow
-
-def main():
-    app = QApplication(sys.argv)
-    
-    window = MainWindow()
-    window.show()
-    
-    sys.exit(app.exec())
+from metamer_finder.gui import main
 
 if __name__ == "__main__":
     main()

@@ -16,7 +16,7 @@ from .canvas import ImageMaskCanvas, ToolMode
 from .worker import OptimizationWorker
 from .transforms import concat_images
 from .utils import get_device, load_model
-from inspect_model import analyze_skip_connections
+from .inspector import analyze_skip_connections
 
 class MainWindow(QMainWindow):
     """
@@ -280,16 +280,15 @@ class MainWindow(QMainWindow):
         
         try:
             # Instantiate model
-            if model_name == "VGG16":
-                self.current_model = models.vgg16(weights=models.VGG16_Weights.DEFAULT)
-            elif model_name == "ResNet18":
-                self.current_model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-            elif model_name == "ResNet50":
-                self.current_model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
-            elif model_name == "ViT-B/16":
-                self.current_model = models.vit_b_16(weights=models.ViT_B_16_Weights.DEFAULT)
+            model_id_map = {
+                "VGG16": "vgg16",
+                "ResNet18": "resnet18",
+                "ResNet50": "resnet50",
+                "ViT-B/16": "vit_b_16"
+            }
             
-            self.current_model.eval()
+            if model_name in model_id_map:
+                self.current_model = load_model(model_id_map[model_name], get_device())
             
             # Analyze skip connections
             print("Analyzing model architecture...")

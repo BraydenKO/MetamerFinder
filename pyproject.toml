@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metamer-finder"
+version = "0.1.0"
+authors = [
+  { name="BraydenKO", email="your.email@example.com" },
+]
+description = "A specialized PyTorch research tool for generating neural metamers."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch",
+    "torchvision",
+    "Pillow",
+    "numpy",
+    "tqdm",
+    "PyQt6",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/BraydenKO/MetamerFinder"
+"Bug Tracker" = "https://github.com/BraydenKO/MetamerFinder/issues"
+
+[project.scripts]
+metamer-finder = "metamer_finder.cli:main"
+metamer-gui = "metamer_finder.gui:main"
+metamer-inspect = "metamer_finder.inspect_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["metamer_finder*"]

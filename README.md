@@ -48,46 +48,71 @@ VGG 16 matching featues.20 using Gram Matrix
 
 ## Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/your-repo/MetamerFinder.git
-cd MetamerFinder
+You can install Metamer Finder in two ways depending on how you plan to use it:
 
-# Install dependencies
-pip install -r requirements.txt
+### 1. Quick Install (Best for most users)
+Install the latest version directly from GitHub to get the global commands immediately.
+```bash
+pip install git+https://github.com/BraydenKO/MetamerFinder.git
+```
+
+### 2. Local Clone (Best for tweaking or research)
+Clone the repository if you want to explore the code or run the included experiments. Installing with `-e` (editable mode) means any changes you make to the code are reflected immediately in your commands.
+```bash
+git clone https://github.com/BraydenKO/MetamerFinder.git
+cd MetamerFinder
+pip install -e .
 ```
 
 ---
 
 ## Usage
 
+Metamer Finder provides three ways to work: global terminal commands, direct python scripts, or as a library in your own code.
+
 ### 1. Interactive GUI
-The most user-friendly way to explore metamers.
 ```bash
+# Global command (available after pip install)
+metamer-gui
+
+# Or run the script directly from the repo
 python gui_app.py
 ```
-- Load an image, select a model, and draw a mask on the canvas to freeze pixels.
-- Choose between Exact Spatial (MSE) or Texture/Style (Gram Matrix) strategies.
-- Adjust TV Smoothing Weight to reduce high-frequency adversarial artifacts.
-- Use the Undo and Rectangle tools for precise masking.
 
 ### 2. Command Line Interface
-For automated or large-scale generation.
 ```bash
-# Basic image metamer (MSE)
-python main.py --image inputs/dog.png --layers features.15 --iters 500
+# Global command
+metamer-finder -i inputs/dog.png -l features.15 --iters 500
 
-# Texture matching with TV smoothing
-python main.py --image inputs/dog.png --layers features.20 --loss_type gram --tv_weight 0.05
-
-# Non-vision tensor metamer
-python main.py --image inputs/data.pt --model models/custom.pth --layers layer1 --output metamer.pt
+# Or run the script directly
+python main.py --image inputs/dog.png --layers features.15
 ```
 
 ### 3. Model Inspection
-Identify layers and check for residual bottlenecks.
+Analyze model architecture to find safe layers for optimization.
 ```bash
+# Global command
+metamer-inspect -m resnet50 --types
+
+# Or run the script directly
 python inspect_model.py --model resnet50 --types
+```
+
+### 4. Integration as a Python Library
+You can import the core engine directly into your research pipelines:
+
+```python
+import torch
+from metamer_finder import FeatureExtractor, MetamerOptimizer, load_model, analyze_skip_connections
+
+# 1. Load model and analyze skip connections
+model = load_model("vgg16", torch.device("cpu"))
+skip_info = analyze_skip_connections(model)
+
+# 2. Extract and Optimize
+extractor = FeatureExtractor(model, ["features.15"])
+optimizer = MetamerOptimizer(extractor, target_features)
+metamer = optimizer.generate(starting_image=noise_tensor)
 ```
 
 ---
@@ -114,7 +139,7 @@ This tool is heavily inspired by the work of Jenelle Feather and the McDermott L
 
 ---
 
-## Experiments & Specialized Demos
+## Experiments & Demos
 
 The `experiments/` directory contains Jupyter notebooks and datasets demonstrating the tool's versatility across different domains:
 
